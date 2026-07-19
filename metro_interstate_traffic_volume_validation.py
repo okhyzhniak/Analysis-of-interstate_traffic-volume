@@ -21,8 +21,8 @@ def root_mse(y, pred_y):
 data_train = pd.read_csv("metro_interstate_traffic_volume/data/data_train_final.csv")
 data_val = pd.read_csv("metro_interstate_traffic_volume/data/data_val.csv")
 
-train_group_traffic_by_year_week = pd.read_csv("metro_interstate_traffic_volume/data/" + \
-    "train_group_traffic_by_year_week.csv")
+train_group_traffic_temp_by_year_week = pd.read_csv("metro_interstate_traffic_volume/data/" + \
+    "train_group_traffic_temp_by_year_week.csv")
 
 data_train["date_time"] = data_train["date_time"].apply(lambda x: np.datetime64(x))
 data_val["date_time"] = data_val["date_time"].apply(lambda x: np.datetime64(x))
@@ -69,27 +69,33 @@ data_val["Dummy_holiday"] = (data_val["Date_dt"].isin(data_holidays["Holiday_dat
 data_val = data_val.drop(["clouds_all"], axis=1)
 
 # Lagged average weeekly traffic volume
-val_group_traffic_by_year_week = data_val[["Year_dt", "Week_dt", \
-        "traffic_volume"]].groupby(["Year_dt", "Week_dt"])["traffic_volume"].mean()
-val_group_traffic_by_year_week = val_group_traffic_by_year_week.reset_index()
-val_group_traffic_by_year_week = val_group_traffic_by_year_week.sort_values(by=["Year_dt", "Week_dt"])
+val_group_traffic_temp_by_year_week = data_val[["Year_dt", "Week_dt", "traffic_volume", \
+    "Temp_celcius"]].groupby(["Year_dt", "Week_dt"])[["traffic_volume", "Temp_celcius"]].mean()
+val_group_traffic_temp_by_year_week = val_group_traffic_temp_by_year_week.reset_index()
+val_group_traffic_temp_by_year_week = \
+    val_group_traffic_temp_by_year_week.sort_values(by=["Year_dt", "Week_dt"])
 
-print("Last rows in the grouped train dataset \n", train_group_traffic_by_year_week.tail())
-print("First rows in the grouped validation dataset \n", val_group_traffic_by_year_week.head())
+print("Last rows in the grouped train dataset \n", train_group_traffic_temp_by_year_week.tail())
+print("First rows in the grouped validation dataset \n", val_group_traffic_temp_by_year_week.head())
 
-group_traffic_by_year_week = pd.concat([train_group_traffic_by_year_week, \
-    val_group_traffic_by_year_week], axis=0)
-group_traffic_by_year_week["traffic_volume_lag"] = group_traffic_by_year_week["traffic_volume"].shift(1)
-group_traffic_by_year_week.dropna()
+group_traffic_temp_by_year_week = pd.concat([train_group_traffic_temp_by_year_week, \
+    val_group_traffic_temp_by_year_week], axis=0)
+group_traffic_temp_by_year_week["traffic_volume_lag"] = \
+    group_traffic_temp_by_year_week["traffic_volume"].shift(1)
+group_traffic_temp_by_year_week["Temp_celcius_lag"] = \
+    group_traffic_temp_by_year_week["Temp_celcius"].shift(1)
+group_traffic_temp_by_year_week.dropna()
 
 # Save grouped traffic values to a separate file
-# group_traffic_by_year_week.to_csv("metro_interstate_traffic_volume/data/group_traffic_by_year_week.csv")
+#group_traffic_temp_by_year_week.to_csv("metro_interstate_traffic_volume/data/" + \
+#    "group_traffic_temp_by_year_week.csv")
 
 # Combine the lagged value with the validation dataset
-data_val = pd.merge(data_val, group_traffic_by_year_week, how="left", on=["Year_dt", "Week_dt"], \
+data_val = pd.merge(data_val, group_traffic_temp_by_year_week, how="left", on=["Year_dt", "Week_dt"], \
     suffixes=["_final", "_grouped"])
-data_val = data_val.drop(["Date_dt", "traffic_volume_grouped"], axis=1)
-data_val = data_val.rename({"traffic_volume_final": "traffic_volume"}, axis=1)
+data_val = data_val.drop(["Date_dt", "traffic_volume_grouped", "Temp_celcius_grouped"], axis=1)
+data_val = data_val.rename({"traffic_volume_final": "traffic_volume", \
+    "Temp_celcius_final": "Temp_celcius"}, axis=1)
 
 print("The first rows in the validation dataset \n", data_val.head())
 print("The last rows in the validation dataset \n", data_val.tail())
@@ -127,7 +133,7 @@ cols_val_extra = list(set(data_val.columns) - set(data_train.columns))
 print(cols_train_extra)
 print(cols_val_extra)
 
-cols_continuous = ["traffic_volume_lag"]
+cols_continuous = ["traffic_volume_lag", "Temp_celcius_lag"]
 cols_dummies = [col for col in data_train.columns if col.startswith("Dummy")]
 cols_dummies_without_weather = [col for col in cols_dummies if (col.startswith("Dummy_month") | \
     col.startswith("Dummy_weekday") | col.startswith("Dummy_hour"))] + ["Dummy_holiday"]

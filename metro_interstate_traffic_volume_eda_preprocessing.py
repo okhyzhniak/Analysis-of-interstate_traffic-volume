@@ -82,23 +82,6 @@ print("Week 1, month 12, year 2013 \n", \
     data_train_final[(data_train_final["Week_dt"] == 1) & (data_train_final["Year_dt"] == 2013) & \
         (data_train_final["Month_dt"] == 12)])
 
-# Traffic volume data by year and week
-group_traffic_by_year_week = \
-    data_train_final[["Year_dt", "Week_dt", \
-        "traffic_volume"]].groupby(["Year_dt", "Week_dt"])["traffic_volume"].mean()
-
-plt.plot(list(range(len(group_traffic_by_year_week))), list(group_traffic_by_year_week.values))
-plt.title("The dynamics of mean traffic volume")
-plt.show()
-
-group_traffic_by_year_week = group_traffic_by_year_week.reset_index()
-group_traffic_by_year_week = group_traffic_by_year_week.sort_values(by=["Year_dt", "Week_dt"])
-print("The first rows for the mean traffic volume grouped by year and week \n", \
-    group_traffic_by_year_week.head())
-
-#group_traffic_by_year_week.to_csv("metro_interstate_traffic_volume/data/" + \
-#    "train_group_traffic_by_year_week.csv", index=False)
-
 # Temperature
 data_train_final["Temp_celcius"] = data_train_final["temp"].apply(lambda x: x - 273.15)
 print("Descriptive statistics for the temperature variable \n", data_train_final["Temp_celcius"].describe())
@@ -113,6 +96,29 @@ plt.show()
 
 print("Pearson correlation for temperature \n", \
     stats.pearsonr(data_train_final["Temp_celcius"], data_train_final["traffic_volume"]))
+
+# Traffic volume data by year and week
+group_traffic_temp_by_year_week = \
+    data_train_final[["Year_dt", "Week_dt", "traffic_volume", "Temp_celcius"]].groupby(["Year_dt", \
+        "Week_dt"])[["traffic_volume", "Temp_celcius"]].mean()
+
+plt.plot(list(range(len(group_traffic_temp_by_year_week))), \
+    list(group_traffic_temp_by_year_week["traffic_volume"]))
+plt.title("The dynamics of mean traffic volume")
+plt.show()
+
+plt.plot(list(range(len(group_traffic_temp_by_year_week))), \
+    list(group_traffic_temp_by_year_week["Temp_celcius"]))
+plt.title("The dynamics of mean temperature")
+plt.show()
+
+group_traffic_temp_by_year_week = group_traffic_temp_by_year_week.reset_index()
+group_traffic_temp_by_year_week = group_traffic_temp_by_year_week.sort_values(by=["Year_dt", "Week_dt"])
+print("The first rows for the mean traffic volume and mean temperature grouped by year and week \n", \
+    group_traffic_temp_by_year_week.head())
+
+#group_traffic_temp_by_year_week.to_csv("metro_interstate_traffic_volume/data/" + \
+#    "train_group_traffic_temp_by_year_week.csv", index=False)
 
 # The holiday variable
 print("Descriptive statistics for the holiday variable \n", data_train_final["holiday"].describe())
@@ -187,17 +193,27 @@ print("Mean traffic volume by hour \n", \
     data_train_final[["Hour_dt", "traffic_volume"]].groupby(["Hour_dt"])["traffic_volume"].mean())
 
 # Lagged average weeekly traffic volume
-group_traffic_by_year_week["traffic_volume_lag"] = group_traffic_by_year_week["traffic_volume"].shift(1)
-group_traffic_by_year_week = group_traffic_by_year_week.dropna()
+group_traffic_temp_by_year_week["traffic_volume_lag"] = \
+    group_traffic_temp_by_year_week["traffic_volume"].shift(1)
+group_traffic_temp_by_year_week["Temp_celcius_lag"] = \
+    group_traffic_temp_by_year_week["Temp_celcius"].shift(1)
+group_traffic_temp_by_year_week = group_traffic_temp_by_year_week.dropna()
 
-data_train_final = pd.merge(data_train_final, group_traffic_by_year_week, how="left", \
+data_train_final = pd.merge(data_train_final, group_traffic_temp_by_year_week, how="left", \
     on=["Year_dt", "Week_dt"], suffixes=["_final", "_grouped"])
 data_train_final = data_train_final.dropna()
-data_train_final = data_train_final.drop(["Date_dt", "traffic_volume_grouped"], axis=1)
-data_train_final = data_train_final.rename({"traffic_volume_final": "traffic_volume"}, axis=1)
+data_train_final = data_train_final.drop(["Date_dt", "traffic_volume_grouped", \
+    "Temp_celcius_grouped"], axis=1)
+data_train_final = data_train_final.rename({"traffic_volume_final": "traffic_volume", \
+    "Temp_celcius_final": "Temp_celcius"}, axis=1)
+
+print(list(data_train_final.columns))
 
 print("Pearson correlation for lagged weekly average traffic \n", \
     stats.pearsonr(data_train_final["traffic_volume_lag"], data_train_final["traffic_volume"]))
+
+print("Pearson correlation for lagged weekly average temperature \n", \
+    stats.pearsonr(data_train_final["Temp_celcius_lag"], data_train_final["traffic_volume"]))
 
 # data_train_final.to_csv("metro_interstate_traffic_volume/data/data_train_final.csv", index=False)
 
