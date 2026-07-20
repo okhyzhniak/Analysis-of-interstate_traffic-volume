@@ -20,8 +20,8 @@ def root_mse(y, pred_y):
     return np.sqrt(np.mean(diff_sq))
 
 data_train = pd.read_csv("metro_interstate_traffic_volume/data/data_train_clean.csv")
-group_traffic_by_year_week = pd.read_csv("metro_interstate_traffic_volume/data/" + \
-    "group_traffic_by_year_week.csv")
+group_traffic_temp_by_year_week = pd.read_csv("metro_interstate_traffic_volume/data/" + \
+    "group_traffic_temp_by_year_week.csv")
 data_test = pd.read_csv("metro_interstate_traffic_volume/data/data_test.csv")
 
 data_test["date_time"] = data_test["date_time"].apply(lambda x: np.datetime64(x))
@@ -70,27 +70,34 @@ data_test["Dummy_holiday"] = (data_test["Date_dt"].isin(data_holidays["Holiday_d
 data_test = data_test.drop(["clouds_all"], axis=1)
 
 # Average traffic volume grouped by year, week
-print("The first rows in the grouped dataset \n", group_traffic_by_year_week.head())
-group_traffic_by_year_week = group_traffic_by_year_week.drop(["traffic_volume_lag"], axis=1)
+print("The first rows in the grouped dataset \n", group_traffic_temp_by_year_week.head())
+group_traffic_temp_by_year_week = \
+    group_traffic_temp_by_year_week.drop(["traffic_volume_lag", "Temp_celcius_lag"], axis=1)
 
 # Lagged average weeekly traffic volume
-test_group_traffic_by_year_week = data_test[["Year_dt", "Week_dt", \
-        "traffic_volume"]].groupby(["Year_dt", "Week_dt"])["traffic_volume"].mean()
-test_group_traffic_by_year_week = test_group_traffic_by_year_week.reset_index()
-test_group_traffic_by_year_week = test_group_traffic_by_year_week.sort_values(by=["Year_dt", "Week_dt"])
+test_group_traffic_temp_by_year_week = data_test[["Year_dt", "Week_dt", "traffic_volume", \
+    "Temp_celcius"]].groupby(["Year_dt", "Week_dt"])[["traffic_volume", "Temp_celcius"]].mean()
+test_group_traffic_temp_by_year_week = test_group_traffic_temp_by_year_week.reset_index()
+test_group_traffic_temp_by_year_week = \
+    test_group_traffic_temp_by_year_week.sort_values(by=["Year_dt", "Week_dt"])
 
-print("Last rows in the grouped train dataset \n", group_traffic_by_year_week.tail())
-print("First rows in the grouped test dataset \n", test_group_traffic_by_year_week.head())
+print("Last rows in the grouped train dataset \n", group_traffic_temp_by_year_week.tail())
+print("First rows in the grouped test dataset \n", test_group_traffic_temp_by_year_week.head())
 
-group_traffic_by_year_week = pd.concat([group_traffic_by_year_week, test_group_traffic_by_year_week], axis=0)
-group_traffic_by_year_week["traffic_volume_lag"] = group_traffic_by_year_week["traffic_volume"].shift(1)
-group_traffic_by_year_week.dropna()
+group_traffic_temp_by_year_week = \
+    pd.concat([group_traffic_temp_by_year_week, test_group_traffic_temp_by_year_week], axis=0)
+group_traffic_temp_by_year_week["traffic_volume_lag"] = \
+    group_traffic_temp_by_year_week["traffic_volume"].shift(1)
+group_traffic_temp_by_year_week["Temp_celcius_lag"] = \
+    group_traffic_temp_by_year_week["Temp_celcius"].shift(1)
+group_traffic_temp_by_year_week.dropna()
 
 # Combine the lagged value with the test dataset
-data_test = pd.merge(data_test, group_traffic_by_year_week, how="left", on=["Year_dt", "Week_dt"], \
+data_test = pd.merge(data_test, group_traffic_temp_by_year_week, how="left", on=["Year_dt", "Week_dt"], \
     suffixes=["_final", "_grouped"])
-data_test = data_test.drop(["Date_dt", "traffic_volume_grouped"], axis=1)
-data_test = data_test.rename({"traffic_volume_final": "traffic_volume"}, axis=1)
+data_test = data_test.drop(["Date_dt", "traffic_volume_grouped", "Temp_celcius_grouped"], axis=1)
+data_test = data_test.rename({"traffic_volume_final": "traffic_volume", \
+    "Temp_celcius_final": "Temp_celcius"}, axis=1)
 
 # Weather description
 data_test["weather_description"] = data_test["weather_description"].replace({"Sky is Clear": "sky is clear"})
@@ -117,8 +124,8 @@ cols_test_extra = list(set(data_test.columns) - set(data_train.columns))
 print(cols_train_extra)
 print(cols_test_extra)
 
-cols_continuous = ["traffic_volume_lag"]
-cols_dummies = [col for col in data_test.columns if col.startswith("Dummy")]
+cols_continuous = ["traffic_volume_lag", "Temp_celcius_lag"]
+cols_dummies = [col for col in data_train.columns if col.startswith("Dummy")]
 cols_dummies_without_weather = [col for col in cols_dummies if (col.startswith("Dummy_month") | \
     col.startswith("Dummy_weekday") | col.startswith("Dummy_hour"))] + ["Dummy_holiday"]
 
@@ -133,8 +140,8 @@ print(res_reg_lin.summary())
 y_test, X_test = data_test["traffic_volume"], sm.add_constant(data_test[cols_continuous + \
     cols_dummies_without_weather])
 
-smpickle.save_pickle(res_reg_lin, "metro_interstate_traffic_volume/models/" + \
-    "lin_reg_model_without_weather.pickle")
+#smpickle.save_pickle(res_reg_lin, "metro_interstate_traffic_volume/models/" + \
+#    "lin_reg_model_lagged_avg_temp.pickle")
 
 print("RMSE for the linear regression model on the train dataset \n", \
     root_mse(y, res_reg_lin.predict(X)))
